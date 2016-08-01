@@ -140,4 +140,14 @@ describe Sidekiq::Postpone do
       end
     end
   end
+
+  describe '.wrap' do
+    it 'creates a postpone object and calls #wrap on it' do
+      postpone_double = double
+      expect(Sidekiq::Postpone).to receive(:new) { postpone_double }
+      expect(postpone_double).to receive(:wrap)
+
+      Sidekiq::Postpone.wrap { }
+    end
+  end
 end

@@ -20,6 +20,10 @@ class Sidekiq::Postpone
     stop
   end
 
+  def self.wrap(&block)
+    new.wrap(&block)
+  end
+
   def push(payloads)
     if payloads.first['at']
       @schedule.concat(payloads)

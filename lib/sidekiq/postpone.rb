@@ -13,9 +13,10 @@ class Sidekiq::Postpone
 
   def wrap
     start
-    yield
-    stop
-    flush
+    yield.tap do
+      stop
+      flush
+    end
   ensure
     stop
   end

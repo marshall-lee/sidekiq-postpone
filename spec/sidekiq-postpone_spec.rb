@@ -26,6 +26,10 @@ describe Sidekiq::Postpone do
   let(:scheduled) { Sidekiq::ScheduledSet.new }
 
   describe '#wrap' do
+    it 'returns a value of yield' do
+      expect(postponer.wrap { :vova }).to eq(:vova)
+    end
+
     it 'sets a tls variable inside a block' do
       postponer.wrap do
         expect(sidekiq_postpone_tls).to_not be nil
@@ -148,6 +152,10 @@ describe Sidekiq::Postpone do
       expect(postpone_double).to receive(:wrap)
 
       Sidekiq::Postpone.wrap { }
+    end
+
+    it 'returns a value of a block' do
+      expect(Sidekiq::Postpone.wrap { :vova }).to eq :vova
     end
   end
 end

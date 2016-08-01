@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/marshall-lee/sidekiq-postpone.svg?branch=master)](https://travis-ci.org/marshall-lee/sidekiq-postpone)
+
 # sidekiq-postpone
 
 Bulk-pushes tasks to Redis when you need it to.

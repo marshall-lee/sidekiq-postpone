@@ -29,7 +29,7 @@ class Sidekiq::Postpone
       @schedule.concat(payloads)
     else
       q = payloads.first['queue']
-      @queue[q].concat(payloads)
+      @queues[q].concat(payloads)
     end
   end
 
@@ -38,7 +38,7 @@ class Sidekiq::Postpone
   def flush
     client = Sidekiq::Client.new(*@client_args)
     raw_push = client.method(:raw_push)
-    @queue.each_value(&raw_push)
+    @queues.each_value(&raw_push)
     raw_push.(@schedule) unless @schedule.empty?
   end
 
@@ -55,7 +55,7 @@ class Sidekiq::Postpone
   end
 
   def setup_queues
-    @queue = Hash.new do |hash, key|
+    @queues = Hash.new do |hash, key|
       hash[key] = []
     end
   end

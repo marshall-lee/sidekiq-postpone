@@ -2,7 +2,7 @@ require 'spec_helper'
 
 describe Sidekiq::Postpone do
   let(:client_args) { nil }
-  let(:postponer) { described_class.new(client_args) }
+  let(:postponer) { described_class.new(*client_args) }
 
   before do
     sidekiq_worker(:Foo)
@@ -48,6 +48,17 @@ describe Sidekiq::Postpone do
       rescue
       end
       expect(sidekiq_postpone_tls).to be nil
+    end
+
+    context 'with custom client args' do
+      let(:client_args) { [:yo, :man] }
+
+      it 'passes these args to Sidekiq::Client' do
+        postponer.wrap do
+          Foo.perform_async
+          expect(Sidekiq::Client).to receive(:new).with(*client_args) { double(raw_push: nil) }
+        end
+      end
     end
 
     context 'with perform_async' do

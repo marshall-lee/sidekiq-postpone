@@ -5,7 +5,7 @@ require "sidekiq/postpone/version"
 require "sidekiq/postpone/core_ext"
 
 class Sidekiq::Postpone
-  def initialize(client_args)
+  def initialize(*client_args)
     @client_args = client_args
     setup_queues
     setup_schedule
@@ -30,7 +30,7 @@ class Sidekiq::Postpone
   end
 
   def flush
-    client = Sidekiq::Client.new(@client_args)
+    client = Sidekiq::Client.new(*@client_args)
     raw_push = client.method(:raw_push)
     @queue.each_value(&raw_push)
     raw_push.(@schedule) unless @schedule.empty?

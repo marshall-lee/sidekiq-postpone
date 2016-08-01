@@ -29,6 +29,8 @@ class Sidekiq::Postpone
     end
   end
 
+  private
+
   def flush
     client = Sidekiq::Client.new(*@client_args)
     raw_push = client.method(:raw_push)
@@ -47,8 +49,6 @@ class Sidekiq::Postpone
   def stop
     Thread.current[:sidekiq_postpone] = nil
   end
-
-  private
 
   def setup_queues
     @queue = Hash.new do |hash, key|

@@ -22,7 +22,18 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+Typical use-case is with database transactions:
+
+```ruby
+Sidekiq::Postpone.wrap do
+  ActiveRecord::Base.transaction do
+    # ...
+    post = Post.create(params)
+    ImageProcess.perform_async(post.image)
+  end
+end
+# In fact, ImageProcess job will be pushed to the queue only after `wrap { ... }` block finishes.
+```
 
 ## Development
 

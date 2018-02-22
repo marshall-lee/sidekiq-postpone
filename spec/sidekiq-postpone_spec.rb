@@ -158,4 +158,30 @@ describe Sidekiq::Postpone do
       expect(Sidekiq::Postpone.wrap { :vova }).to eq :vova
     end
   end
+
+  describe '#clear!' do
+    context 'with perform_async' do
+      it 'does not pushe a job to the queue' do
+        expect {
+          Sidekiq::Postpone.wrap do |postponer|
+            Foo.perform_async
+            postponer.clear!
+          end
+        }.not_to change { queue_foo.size }
+      end
+    end
+
+    context 'with perform_in' do
+      let(:at) { Time.now + 1 }
+
+      it 'pushes a job to the scheduled set' do
+        expect {
+          Sidekiq::Postpone.wrap do |postponer|
+            Foo.perform_in(at)
+            postponer.clear!
+          end
+        }.not_to change { scheduled.size }
+      end
+    end
+  end
 end

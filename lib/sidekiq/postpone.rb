@@ -13,7 +13,7 @@ class Sidekiq::Postpone
 
   def wrap
     start
-    yield.tap do
+    yield(self).tap do
       stop
       flush
     end
@@ -34,9 +34,15 @@ class Sidekiq::Postpone
     end
   end
 
+  def clear!
+    @queues.clear
+    @schedule.clear
+  end
+
   private
 
   def flush
+    return if @queues.empty? && @schedule.empty?
     client = Sidekiq::Client.new(*@client_args)
     raw_push = client.method(:raw_push)
     @queues.each_value(&raw_push)

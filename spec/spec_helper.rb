@@ -14,7 +14,9 @@ end
 RSpec.configure do |c|
   c.include SidekiqHelper
   c.after(:each) { clear_sidekiq_workers }
-  c.after(:each) { Sidekiq.redis(&:flushdb) }
+  c.after(:each) do
+    Sidekiq.redis { |namespaced| namespaced.redis.flushall }
+  end
 
   c.order = :random
   Kernel.srand c.seed

@@ -11,18 +11,26 @@ class Sidekiq::Postpone
     setup_schedule
   end
 
-  def wrap
-    start
-    yield(self).tap do
-      stop
-      flush
+  def wrap(join_parent: true, flush: true)
+    enter!
+    begin
+      yield self
+    rescue
+      clear!
+      raise
+    end.tap do
+      if join_parent && (parent = Thread.current[:sidekiq_postpone_stack][-2])
+        join!(parent)
+      elsif flush
+        flush!
+      end
     end
   ensure
-    stop
+    leave!
   end
 
-  def self.wrap(&block)
-    new.wrap(&block)
+  def self.wrap(*client_args, **kwargs, &block)
+    new(*client_args).wrap(**kwargs, &block)
   end
 
   def push(payloads)
@@ -39,26 +47,57 @@ class Sidekiq::Postpone
     @schedule.clear
   end
 
-  private
+  def flush!
+    return if empty?
 
-  def flush
-    return if @queues.empty? && @schedule.empty?
+    current_postpone = Thread.current[:sidekiq_postpone]
+    Thread.current[:sidekiq_postpone] = nil # activate real raw_push
+
     client = Sidekiq::Client.new(*@client_args)
     raw_push = client.method(:raw_push)
     @queues.each_value(&raw_push)
     raw_push.(@schedule) unless @schedule.empty?
+  ensure
+    Thread.current[:sidekiq_postpone] = current_postpone
   end
 
-  def start
-    if Thread.current[:sidekiq_postpone]
-      raise 'Nested Sidekiq::Postpone is not supported'
-    end
+  def join!(other)
+    return if empty?
 
+    @queues.each do |name, payloads|
+      other.queues[name].concat(payloads)
+    end
+    other.schedule.concat(@schedule)
+
+    clear!
+  end
+
+  def empty?
+    @queues.empty? && @schedule.empty?
+  end
+
+  protected
+
+  attr_reader :queues, :schedule
+
+  private
+
+  def enter!
+    if @entered
+      raise 'Sidekiq::Postpone#wrap is not re-enterable on the same instance'
+    else
+      @entered = true
+    end
+    Thread.current[:sidekiq_postpone_stack] ||= []
+    Thread.current[:sidekiq_postpone_stack].push(self)
     Thread.current[:sidekiq_postpone] = self
   end
 
-  def stop
-    Thread.current[:sidekiq_postpone] = nil
+  def leave!
+    Thread.current[:sidekiq_postpone_stack].pop
+    head = Thread.current[:sidekiq_postpone_stack].last
+    Thread.current[:sidekiq_postpone] = head
+    @entered = false
   end
 
   def setup_queues

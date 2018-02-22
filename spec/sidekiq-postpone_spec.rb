@@ -157,6 +157,40 @@ describe Sidekiq::Postpone do
     it 'returns a value of a block' do
       expect(Sidekiq::Postpone.wrap { :vova }).to eq :vova
     end
+
+    it 'supports nesting' do
+      expect do
+        Sidekiq::Postpone.wrap do
+          Foo.perform_async
+          expect {
+            Sidekiq::Postpone.wrap(join_parent: false) do
+              Bar.perform_async
+            end
+          }.to change { queue_bar.size }.by(1)
+          expect {
+            Sidekiq::Postpone.wrap(join_parent: true) do
+              Bar.perform_async
+              Bar.perform_in(Time.now + 1)
+            end
+          }.not_to change { queue_bar.size }
+          Foo.perform_async
+          Foo.perform_async
+        end
+      end.to change { queue_foo.size }.by(3)
+         .and change { queue_bar.size }.by(2)
+         .and change { scheduled.size }.by(1)
+    end
+  end
+
+  describe '#flush!' do
+    it 'works outside of #wrap block' do
+      expect {
+        postponer.wrap(flush: false) do
+          Foo.perform_async
+        end
+      }.not_to change { queue_foo.size }
+      expect { postponer.flush! }.to change { queue_foo.size }.by(1)
+    end
   end
 
   describe '#clear!' do
@@ -168,6 +202,29 @@ describe Sidekiq::Postpone do
             postponer.clear!
           end
         }.not_to change { queue_foo.size }
+      end
+
+      it 'supports nesting' do
+        expect {
+          Sidekiq::Postpone.wrap do |postponer|
+            Foo.perform_async
+            Sidekiq::Postpone.wrap(join_parent: true) do
+              Foo.perform_async
+            end
+            postponer.clear!
+          end
+        }.not_to change { queue_foo.size }
+
+        expect {
+          Sidekiq::Postpone.wrap do
+            Foo.perform_async
+            Foo.perform_async
+            Sidekiq::Postpone.wrap do |postponer|
+              Foo.perform_async
+              postponer.clear!
+            end
+          end
+        }.to change { queue_foo.size }.by 2
       end
     end
 

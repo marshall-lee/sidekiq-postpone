@@ -3,6 +3,7 @@ require 'spec_helper'
 describe Sidekiq::Postpone do
   let(:client_args) { nil }
   let(:postponer) { described_class.new(*client_args) }
+  let(:another_postponer) { described_class.new(*client_args) }
 
   before do
     sidekiq_worker(:Foo)
@@ -143,6 +144,15 @@ describe Sidekiq::Postpone do
         }.to change { scheduled.size }.by 3
       end
     end
+
+    it 'clears itself after flush' do
+      postponer.wrap do
+        Foo.perform_async
+        Foo.perform_in(Time.now + 1)
+        expect(postponer).not_to be_empty
+      end
+      expect(postponer).to be_empty
+    end
   end
 
   describe '.wrap' do
@@ -190,6 +200,18 @@ describe Sidekiq::Postpone do
         end
       }.not_to change { queue_foo.size }
       expect { postponer.flush! }.to change { queue_foo.size }.by(1)
+    end
+
+    it 'keeps the current postpone' do
+      postponer.wrap(flush: false) do
+        expect(sidekiq_postpone_tls).to eq postponer
+        expect do
+          another_postponer.wrap(flush: false) do
+            expect(sidekiq_postpone_tls).to eq another_postponer
+          end
+          another_postponer.flush!
+        end.not_to(change { sidekiq_postpone_tls })
+      end
     end
   end
 

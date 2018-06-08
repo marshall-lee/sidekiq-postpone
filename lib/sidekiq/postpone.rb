@@ -22,7 +22,7 @@ class Sidekiq::Postpone
       if join_parent && (parent = Thread.current[:sidekiq_postpone_stack][-2])
         join!(parent)
       elsif flush
-        flush!
+        @flush_on_leave = true
       end
     end
   ensure
@@ -48,15 +48,17 @@ class Sidekiq::Postpone
   end
 
   def flush!
+    current_postpone = Thread.current[:sidekiq_postpone]
     return if empty?
 
-    current_postpone = Thread.current[:sidekiq_postpone]
     Thread.current[:sidekiq_postpone] = nil # activate real raw_push
 
     client = Sidekiq::Client.new(*@client_args)
-    raw_push = client.method(:raw_push)
-    @queues.each_value(&raw_push)
-    raw_push.(@schedule) unless @schedule.empty?
+
+    @queues.each_value { |item| client.raw_push(item) }
+    client.raw_push(@schedule) unless @schedule.empty?
+
+    clear!
   ensure
     Thread.current[:sidekiq_postpone] = current_postpone
   end
@@ -98,6 +100,10 @@ class Sidekiq::Postpone
     head = Thread.current[:sidekiq_postpone_stack].last
     Thread.current[:sidekiq_postpone] = head
     @entered = false
+    if @flush_on_leave
+      @flush_on_leave = false
+      flush!
+    end
   end
 
   def setup_queues

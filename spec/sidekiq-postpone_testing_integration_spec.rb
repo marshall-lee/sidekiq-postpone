@@ -87,4 +87,36 @@ describe Sidekiq::Postpone do
       end
     end
   end
+
+  describe 'integration with Sidekiq::Testing.inline!' do
+    around { |ex| Sidekiq::Testing.inline!(&ex) }
+    let(:side_effect) { { foo: 0 } }
+
+    before do
+      eff = side_effect
+      Bar.class_eval do
+        define_method :perform do
+          eff[:foo] += 1
+        end
+      end
+      Foo.class_eval do
+        define_method :perform do
+          Sidekiq::Postpone.wrap do
+            2.times { Bar.perform_async }
+          end
+        end
+      end
+    end
+
+    it 'works well' do
+      expect { 3.times { Foo.perform_async } }
+        .to change { side_effect[:foo] }.by 6
+      expect do
+        Sidekiq::Postpone.wrap do
+          expect { 3.times { Foo.perform_async } }
+            .not_to(change { side_effect[:foo] })
+        end
+      end.to change { side_effect[:foo] }.by 6
+    end
+  end
 end

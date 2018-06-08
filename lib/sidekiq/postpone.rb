@@ -78,6 +78,10 @@ class Sidekiq::Postpone
     @queues.empty? && @schedule.empty?
   end
 
+  def jids
+    [*@queues.values.flatten(1), *@schedule].map! { |j| j['jid'] }
+  end
+
   protected
 
   attr_reader :queues, :schedule

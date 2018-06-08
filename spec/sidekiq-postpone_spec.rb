@@ -263,4 +263,14 @@ describe Sidekiq::Postpone do
       end
     end
   end
+
+  describe '#jids' do
+    it 'returns all job ids' do
+      Sidekiq::Postpone.wrap do |postponer|
+        jid1 = Foo.perform_async
+        jid2 = Foo.perform_in(Time.now + 1)
+        expect(postponer.jids).to contain_exactly(jid1, jid2)
+      end
+    end
+  end
 end

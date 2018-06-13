@@ -78,8 +78,12 @@ class Sidekiq::Postpone
     @queues.empty? && @schedule.empty?
   end
 
+  def all_jobs
+    [*@queues.values.flatten(1), *@schedule]
+  end
+
   def jids
-    [*@queues.values.flatten(1), *@schedule].map! { |j| j['jid'] }
+    all_jobs.map! { |j| j['jid'] }
   end
 
   protected

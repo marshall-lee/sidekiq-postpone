@@ -4,9 +4,10 @@ services:
   - redis-server
 rvm:
   - 2.1
-  - 2.2.2
-  - 2.3.0
+  - 2.2
+  - 2.3
   - 2.4
+  - 2.5
 gemfile:
   - gemfiles/sidekiq_3.0.gemfile
   - gemfiles/sidekiq_3.1.gemfile
@@ -18,14 +19,16 @@ gemfile:
   - gemfiles/sidekiq_4.1.gemfile
   - gemfiles/sidekiq_4.2.gemfile
   - gemfiles/sidekiq_5.0.gemfile
+  - gemfiles/sidekiq_5.1.gemfile
   - gemfiles/sidekiq_master.gemfile
 matrix:
   fast_finish: true
   exclude:
+    - gemfile: gemfiles/sidekiq_5.1.gemfile
+      rvm: 2.1
     - gemfile: gemfiles/sidekiq_5.0.gemfile
       rvm: 2.1
     - gemfile: gemfiles/sidekiq_master.gemfile
-      rvm: 2.1
 
 before_install: gem install bundler -v 1.15
 script:

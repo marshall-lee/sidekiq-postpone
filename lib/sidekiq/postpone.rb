@@ -11,8 +11,8 @@ class Sidekiq::Postpone
     setup_schedule
   end
 
-  def wrap(join_parent: true, flush: true)
-    enter!
+  def wrap(join_parent: true, flush: true, **options)
+    enter!(**options)
     begin
       yield self
     rescue
@@ -22,7 +22,7 @@ class Sidekiq::Postpone
       if join_parent && (parent = Thread.current[:sidekiq_postpone_stack][-2])
         join!(parent)
       elsif flush
-        flush!
+        @flush_on_leave = true
       end
     end
   ensure
@@ -34,12 +34,18 @@ class Sidekiq::Postpone
   end
 
   def push(payloads)
+    if @ignore
+      payloads, ignored = payloads.partition(&@ignore)
+      ignored = nil if ignored.empty?
+      return ignored if payloads.empty?
+    end
     if payloads.first['at']
       @schedule.concat(payloads)
     else
       q = payloads.first['queue']
       @queues[q].concat(payloads)
     end
+    ignored
   end
 
   def clear!
@@ -48,15 +54,17 @@ class Sidekiq::Postpone
   end
 
   def flush!
+    current_postpone = Thread.current[:sidekiq_postpone]
     return if empty?
 
-    current_postpone = Thread.current[:sidekiq_postpone]
     Thread.current[:sidekiq_postpone] = nil # activate real raw_push
 
     client = Sidekiq::Client.new(*@client_args)
-    raw_push = client.method(:raw_push)
-    @queues.each_value(&raw_push)
-    raw_push.(@schedule) unless @schedule.empty?
+
+    @queues.each_value { |item| client.raw_push(item) }
+    client.raw_push(@schedule) unless @schedule.empty?
+
+    clear!
   ensure
     Thread.current[:sidekiq_postpone] = current_postpone
   end
@@ -76,18 +84,23 @@ class Sidekiq::Postpone
     @queues.empty? && @schedule.empty?
   end
 
+  def jids
+    [*@queues.values.flatten(1), *@schedule].map! { |j| j['jid'] }
+  end
+
   protected
 
   attr_reader :queues, :schedule
 
   private
 
-  def enter!
+  def enter!(ignore: nil)
     if @entered
       raise 'Sidekiq::Postpone#wrap is not re-enterable on the same instance'
     else
       @entered = true
     end
+    @ignore = ignore
     Thread.current[:sidekiq_postpone_stack] ||= []
     Thread.current[:sidekiq_postpone_stack].push(self)
     Thread.current[:sidekiq_postpone] = self
@@ -98,6 +111,11 @@ class Sidekiq::Postpone
     head = Thread.current[:sidekiq_postpone_stack].last
     Thread.current[:sidekiq_postpone] = head
     @entered = false
+    @ignore = nil
+    if @flush_on_leave
+      @flush_on_leave = false
+      flush!
+    end
   end
 
   def setup_queues

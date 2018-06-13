@@ -3,6 +3,7 @@ require 'spec_helper'
 describe Sidekiq::Postpone do
   let(:client_args) { nil }
   let(:postponer) { described_class.new(*client_args) }
+  let(:another_postponer) { described_class.new(*client_args) }
 
   before do
     sidekiq_worker(:Foo)
@@ -143,6 +144,15 @@ describe Sidekiq::Postpone do
         }.to change { scheduled.size }.by 3
       end
     end
+
+    it 'clears itself after flush' do
+      postponer.wrap do
+        Foo.perform_async
+        Foo.perform_in(Time.now + 1)
+        expect(postponer).not_to be_empty
+      end
+      expect(postponer).to be_empty
+    end
   end
 
   describe '.wrap' do
@@ -180,6 +190,13 @@ describe Sidekiq::Postpone do
          .and change { queue_bar.size }.by(2)
          .and change { scheduled.size }.by(1)
     end
+
+    it 'supports :ignore option' do
+      Sidekiq::Postpone.wrap(ignore: ->(j) { j['class'] == 'Foo' }) do
+        expect { Foo.perform_async }.not_to change { queue_foo.size }
+        expect { Bar.perform_async }.to change { queue_bar.size }.by 1
+      end
+    end
   end
 
   describe '#flush!' do
@@ -190,6 +207,18 @@ describe Sidekiq::Postpone do
         end
       }.not_to change { queue_foo.size }
       expect { postponer.flush! }.to change { queue_foo.size }.by(1)
+    end
+
+    it 'keeps the current postpone' do
+      postponer.wrap(flush: false) do
+        expect(sidekiq_postpone_tls).to eq postponer
+        expect do
+          another_postponer.wrap(flush: false) do
+            expect(sidekiq_postpone_tls).to eq another_postponer
+          end
+          another_postponer.flush!
+        end.not_to(change { sidekiq_postpone_tls })
+      end
     end
   end
 
@@ -238,6 +267,16 @@ describe Sidekiq::Postpone do
             postponer.clear!
           end
         }.not_to change { scheduled.size }
+      end
+    end
+  end
+
+  describe '#jids' do
+    it 'returns all job ids' do
+      Sidekiq::Postpone.wrap do |postponer|
+        jid1 = Foo.perform_async
+        jid2 = Foo.perform_in(Time.now + 1)
+        expect(postponer.jids).to contain_exactly(jid1, jid2)
       end
     end
   end

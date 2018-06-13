@@ -3,7 +3,9 @@ class Sidekiq::Postpone
     def raw_push(payloads)
       postpone = Thread.current[:sidekiq_postpone]
       if postpone
-        postpone.push(payloads)
+        ignored = postpone.push(payloads)
+        super(ignored) if ignored
+        true
       else
         super
       end

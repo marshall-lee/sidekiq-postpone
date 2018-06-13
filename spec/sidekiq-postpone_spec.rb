@@ -190,13 +190,6 @@ describe Sidekiq::Postpone do
          .and change { queue_bar.size }.by(2)
          .and change { scheduled.size }.by(1)
     end
-
-    it 'supports :ignore option' do
-      Sidekiq::Postpone.wrap(ignore: ->(j) { j['class'] == 'Foo' }) do
-        expect { Foo.perform_async }.not_to change { queue_foo.size }
-        expect { Bar.perform_async }.to change { queue_bar.size }.by 1
-      end
-    end
   end
 
   describe '#flush!' do

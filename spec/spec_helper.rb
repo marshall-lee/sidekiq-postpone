@@ -4,18 +4,20 @@ require 'support/sidekiq_helper'
 
 require 'sidekiq/api'
 require 'sidekiq/redis_connection'
-REDIS_URL = ENV['REDIS_URL'] || 'redis://localhost/15'
-REDIS = Sidekiq::RedisConnection.create(:url => REDIS_URL, :namespace => 'testy')
+redis_url = ENV['REDIS_URL'] || 'redis://localhost/15'
 
 Sidekiq.configure_client do |config|
-  config.redis = { :url => REDIS_URL, :namespace => 'sidekiq-postpone-testy' }
+  config.redis = { :url => redis_url }
 end
 
 RSpec.configure do |c|
   c.include SidekiqHelper
-  c.after(:each) { clear_sidekiq_workers }
+  c.after(:each) { remove_sidekiq_workers }
   c.after(:each) do
-    Sidekiq.redis { |namespaced| namespaced.redis.flushall }
+    Sidekiq::RetrySet.new.clear
+    Sidekiq::ScheduledSet.new.clear
+    Sidekiq::DeadSet.new.clear
+    Sidekiq::Queue.all.map(&:clear)
   end
 
   c.order = :random

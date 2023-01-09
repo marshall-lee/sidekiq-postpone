@@ -9,7 +9,7 @@ module SidekiqHelper
     klass
   end
 
-  def clear_sidekiq_workers
+  def remove_sidekiq_workers
     (@sidekiq_workers || []).each do |klass|
       Object.send(:remove_const, klass.name)
     end
